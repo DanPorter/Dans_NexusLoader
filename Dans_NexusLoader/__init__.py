@@ -20,11 +20,12 @@ By Dan Porter, PhD
 Diamond
 2019
 
-Version 0.9
-Last updated: 21/10/19
+Version 0.3
+Last updated: 15/07/20
 
 Version History:
-21/10/19 0.1    Version History started.
+21/10/19 0.1.0  Version History started.
+15/07/20 0.3.0  Further work on config, data_loaders and gui
 """
 
 
@@ -43,9 +44,9 @@ except ImportError:
 from . import functions_general as fg
 from . import functions_plotting as fp
 from . import functions_nexus as fn
-from . import nexus_config as config
+from . import nexus_config
 from .data_loaders import Experiment, Scan, MultiScans
 
-__version__ = 0.1
-__date__ = '21/10/19'
+__version__ = "0.3.0"
+__date__ = "15/07/20"
 

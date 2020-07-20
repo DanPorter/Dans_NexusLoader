@@ -1,0 +1,112 @@
+{
+    "beamline_config": {
+        "filename": "Dans_NexusLoader/config_files/i16_config.json",
+        "name": "I16",
+        "description": "Default I16 config file",
+        "example_nexus": "Dans_NexusLoader/config_files/i16-example.nxs",
+        "nx_name_format": "%d.nxs",
+        "nx_scan_command": "entry1/scan_command",
+        "nx_measurement": "entry1/measurement",
+        "nx_metadata": "entry1/before_scan",
+        "nx_starttime": "entry1/start_time",
+        "nx_endtime": "entry1/end_time",
+        "nx_normalisation_addresses": [
+            "/entry1/before_scan/gains_atten/Transmission",
+            "/entry1/measurement/count_time",
+            "/entry1/measurement/ic1monitor"
+        ],
+        "normalisation_format": "x/Transmission/count_time[0]/ic1monitor[0]",
+        "format_specifiers": {
+            "name": [
+                "hkl",
+                "Atten",
+                "E",
+                "T",
+                "Temp",
+                "ss",
+                "ds",
+                "psi",
+                "euler",
+                "vertical",
+                "horizontal",
+                "Sample"
+            ],
+            "format": [
+                "(%1.3g,%1.3g,%1.3g)",
+                "%3d (%1.3g)",
+                "%7.4f keV",
+                "%6.2f K",
+                "Ta = %6.2f K, Tb = %6.2f K",
+                "[%4.2f,%4.2f]",
+                "[%4.2f,%4.2f]",
+                "%1.3g",
+                "eta: %9.3f chi: %9.3f phi: %9.3f mu: %9.3f delta: %9.3f gamma: %9.3f",
+                "eta: %9.3f chi: %9.3f phi: %9.3f delta: %9.3f",
+                "mu: %9.3f chi: %9.3f phi: %9.3f gamma: %9.3f",
+                "sx: %5.3f sy: %5.3f sz: %5.3f"
+            ],
+            "address": [
+                [
+                    "/entry1/before_scan/diffractometer_sample/h",
+                    "/entry1/before_scan/diffractometer_sample/k",
+                    "/entry1/before_scan/diffractometer_sample/l"
+                ],
+                [
+                    "/entry1/before_scan/gains_atten/Atten",
+                    "/entry1/before_scan/gains_atten/Transmission"
+                ],
+                [
+                    "/entry1/sample/beam/incident_energy"
+                ],
+                [
+                    "/entry1/before_scan/lakeshore/Ta"
+                ],
+                [
+                    "/entry1/before_scan/lakeshore/Ta",
+                    "/entry1/before_scan/lakeshore/Tb"
+                ],
+                [
+                    "/entry1/before_scan/jjslits/s5xgap",
+                    "/entry1/before_scan/jjslits/s5ygap"
+                ],
+                [
+                    "/entry1/before_scan/s7xgap/s7xgap",
+                    "/entry1/before_scan/s7ygap/s7ygap"
+                ],
+                [
+                    "/entry1/before_scan/psi/psi"
+                ],
+                [
+                    "/entry1/before_scan/diffractometer_sample/eta",
+                    "/entry1/before_scan/diffractometer_sample/chi",
+                    "/entry1/before_scan/diffractometer_sample/phi",
+                    "/entry1/before_scan/diffractometer_sample/mu",
+                    "/entry1/before_scan/diffractometer_sample/delta",
+                    "/entry1/before_scan/diffractometer_sample/gam"
+                ],
+                [
+                    "/entry1/before_scan/diffractometer_sample/eta",
+                    "/entry1/before_scan/diffractometer_sample/chi",
+                    "/entry1/before_scan/diffractometer_sample/phi",
+                    "/entry1/before_scan/diffractometer_sample/delta"
+                ],
+                [
+                    "/entry1/before_scan/diffractometer_sample/mu",
+                    "/entry1/before_scan/diffractometer_sample/chi",
+                    "/entry1/before_scan/diffractometer_sample/phi",
+                    "/entry1/before_scan/diffractometer_sample/gam"
+                ],
+                [
+                    "/entry1/before_scan/positions/sx",
+                    "/entry1/before_scan/positions/sy",
+                    "/entry1/before_scan/positions/sz"
+                ]
+            ]
+        }
+    },
+    "experiment_config": {
+        "working_directory": null,
+        "experiment_directories": [],
+        "experiment_title": ""
+    }
+}

@@ -15,8 +15,8 @@ Usage:
     - from Dans_NexusLoader import functions_general as fg
 
 
-Version 1.4
-Last updated: 18/10/19
+Version 1.8
+Last updated: 16/07/20
 
 Version History:
 06/01/18 1.0    Program created from DansGeneralProgs.py V2.3
@@ -24,6 +24,10 @@ Version History:
 24/05/18 1.2    Corrected 'quad' for the case (1,-2,1)=1
 31/10/18 1.3    Added complex2str
 20/08/19 1.4    Added search_dict_lists
+27/03/20 1.5    Corrected error in gauss for 1d case when centre /= 0
+05/05/20 1.6    New version of readstfm, allows E powers and handles non-numbers.
+12/05/20 1.7    Added sph2cart, replace_bracket_multiple
+16/07/20 1.8    Added vector_inersection and plane_intersection, updated findranges
 
 @author: DGPorter
 """
@@ -31,7 +35,7 @@ Version History:
 import sys, os, re
 import numpy as np
 
-__version__ = '1.4'
+__version__ = '1.8'
 
 # File directory
 directory = os.path.abspath(os.path.dirname(__file__))
@@ -151,6 +155,29 @@ def ang(a, b, deg=False):
     return angle
 
 
+def cart2sph(xyz, deg=False):
+    """
+    Convert coordinates in cartesian to coordinates in spherical
+    https://en.wikipedia.org/wiki/Spherical_coordinate_system
+    ISO convention used.
+        theta = angle from Z-axis to X-axis
+          phi = angle from X-axis to component in XY plane
+    :param xyz: [n*3] array of [x,y,z] coordinates
+    :param deg: if True, returns angles in degrees
+    :return: [r, theta, phi]
+    """
+    xyz = np.asarray(xyz).reshape(-1, 3)
+    xy = xyz[:, 0] ** 2 + xyz[:, 1] ** 2
+    r = mag(xyz)
+    theta = np.arctan2(np.sqrt(xy), xyz[:, 2])  # for elevation angle defined from Z-axis down
+    # theta = np.arctan2(xyz[:,2], np.sqrt(xy))  # for elevation angle defined from XY-plane up
+    phi = np.arctan2(xyz[:, 1], xyz[:, 0])
+    if deg:
+        theta = np.rad2deg(theta)
+        phi = np.rad2deg(phi)
+    return np.vstack((r, theta, phi)).T
+
+
 def rot3D(A, alpha=0., beta=0., gamma=0.):
     """Rotate 3D vector A by euler angles
         A = rot3D(A,alpha=0.,beta=0.,gamma=0.)
@@ -218,6 +245,47 @@ def rotmat(a, b):
     return U
 
 
+def rotate_about_axis(point, axis, angle):
+    """
+    Rotate vector A about vector Axis by angle
+    Using Rodrigues' rotation formula: https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+    :param point: [x,y,z] coordinate to rotate
+    :param axis: [dx,dy,dz] vector about which to rotate
+    :param angle: angle to rotate in deg
+    :return: [x,y,z] rotated point
+    """
+    point = np.asarray(point, dtype=np.float)
+    axis = np.asarray(axis, dtype=np.float) / np.sqrt(np.sum(np.square(axis)))
+    rad = np.deg2rad(angle)
+    cs = np.cos(rad)
+    sn = np.sin(rad)
+    return point * cs + np.cross(axis, point) * sn + axis * np.dot(axis, point) * (1 - cs)
+
+
+def group(A, tolerance=0.0001):
+    """
+    Group similear values in an array, returning the group and indexes
+    array will be sorted so lowest numbers are grouped first
+      group_index, group_values, group_counts = group([2.1, 3.0, 3.1, 1.00], 0.1)
+    group_values = [1., 2., 3.] array of grouped numbers (rounded)
+    array_index = [1, 2, 2, 0] array matching A values to groups, such that A ~ group_values[group_index]
+    group_index = [3, 0, 1] array matching group values to A, such that group_values ~ A[group_index]
+    group_counts = [1, 1, 2] number of iterations of each item in group_values
+    :param A: list or numpy array of numbers
+    :param tolerance: values within this number will be grouped
+    :return: group_values, array_index, group_index, group_counts
+    """
+    A = np.asarray(A, dtype=np.float).reshape(-1)
+    idx = np.argsort(A)
+    rtn_idx = np.argsort(idx)
+    A2 = np.round(A / tolerance) * tolerance
+    groups, indices, inverse, counts = np.unique(A2[idx], return_index=True, return_inverse=True, return_counts=True)
+    # groups = A[idx][indices]  # return original, not rounded values
+    array_index = inverse[rtn_idx]
+    group_index = idx[indices]
+    return groups, array_index, group_index, counts
+
+
 def unique_vector(vecarray, tol=0.05):
     """
     Find unique vectors in an array within a certain tolerance
@@ -259,6 +327,78 @@ def unique_vector(vecarray, tol=0.05):
     uniqueidx = [matchidx.index(n) for n in range(np.max(matchidx) + 1)]
     newarray = vecarray[uniqueidx, :]
     return newarray, uniqueidx, matchidx
+
+
+def distance2line(line_start, line_end, point):
+    """
+    Calculate distance from a line between the start and end to an arbitary point in space
+    :param line_start: array, position of the start of the line
+    :param line_end:  array, position of the end of the line
+    :param point: array, arbitary position in space
+    :return: float
+    """
+    line_start = np.asarray(line_start)
+    line_end = np.asarray(line_end)
+    point = np.asarray(point)
+
+    line_diff = line_end - line_start
+    unit_line = line_diff / np.sqrt(np.sum(line_diff ** 2))
+
+    vec_arb = (line_start - point) - np.dot((line_start - point), unit_line) * unit_line
+    return np.sqrt(np.sum(vec_arb ** 2))
+
+
+def vector_intersection(point1, direction1, point2, direction2):
+    """
+    Calculate the point in 2D where two lines cross.
+    If lines are parallel, return nan
+    For derivation, see: http://paulbourke.net/geometry/pointlineplane/
+    :param point1: [x,y] some coordinate on line 1
+    :param direction1: [dx, dy] the direction of line 1
+    :param point2: [x,y] some coordinate on line 2
+    :param direction2: [dx, dy] the direction of line 2
+    :return: [x, y]
+    """
+
+    point1 = np.asarray(point1)
+    point2 = np.asarray(point2)
+    direction1 = np.asarray(direction1) / np.sqrt(np.sum(np.square(direction1)))
+    direction2 = np.asarray(direction2) / np.sqrt(np.sum(np.square(direction2)))
+
+    if np.dot(direction1, direction2) == 1:
+        print('Vectors are parallel')
+        return np.nan
+
+    mat = np.array([direction1, -direction2])
+    ua, ub = np.dot(point2 - point1, np.linalg.inv(mat))
+    intersect = point1 + ua * direction1
+    return intersect
+
+
+def plane_intersection(line_point, line_direction, plane_point, plane_normal):
+    """
+    Calculate the point at which a line intersects a plane
+    :param line_point: [x,y],z] some coordinate on line
+    :param line_direction: [dx,dy],dz] the direction of line
+    :param plane_point:  [x,y],z] some coordinate on the plane
+    :param plane_normal: [dx,dy],dz] the normal vector of the plane
+    :return: [x,y],z]
+    """
+
+    line_point = np.asarray(line_point)
+    plane_point = np.asarray(plane_point)
+    line_direction = np.asarray(line_direction) / np.sqrt(np.sum(np.square(line_direction)))
+    plane_normal = np.asarray(plane_normal) / np.sqrt(np.sum(np.square(plane_normal)))
+
+    u1 = np.dot(plane_normal, plane_point - line_point)
+    u2 = np.dot(plane_normal, line_direction)
+
+    if u2 == 0:
+        print('Plane is parallel to line')
+        return np.nan
+    u = u1 / u2
+    intersect = line_point + u * line_direction
+    return intersect
 
 
 def find_index(A, value):
@@ -523,27 +663,40 @@ def readstfm(string):
     """
     Read numbers written in standard form: 0.01(2), return value and error
     Read numbers from string with form 0.01(2), returns floats 0.01 and 0.02
+    Errors and values will return 0 if not given.
 
     E.G.
     readstfm('0.01(2)') = (0.01, 0.02)
     readstfm('1000(300)') = (1000.,300.)
+    readstfm('1.23(3)E4') = (12300.0, 300.0)
     """
 
-    values = re.findall('[-0-9.]+', string)
+    values = re.findall('[-0-9.]+|\([-0-9.]+\)', string)
+    if len(values) > 0 and '(' not in values[0] and values[0] != '.':
+        value = values[0]
+    else:
+        value = '0'
 
-    if values[0] == '.':
-        values[0] = '0'
-    value = float(values[0])
-    error = 0.
+    # Determine number of decimal places for error
+    idx = value.find('.')  # returns -1 if . not found
+    if idx > -1:
+        pp = idx - len(value) + 1
+    else:
+        pp = 0
+    value = float(value)
 
-    if len(values) > 1:
-        error = float(values[1])
+    error = re.findall('\([-0-9.]+\)', string)
+    if len(error) > 0:
+        error = abs(float(error[0].strip('()')))
+        error = error * 10 ** pp
+    else:
+        error = 0.
 
-        # Determine decimal place
-        idx = values[0].find('.')  # returns -1 if no decimal
-        if idx > -1:
-            pp = idx - len(values[0]) + 1
-            error = error * 10 ** pp
+    power = re.findall('(?:[eE]|x10\^|\*10\^|\*10\*\*)([+-]?\d*\.?\d+)', string)
+    if len(power) > 0:
+        power = float(power[0])
+        value = value * 10 ** power
+        error = error * 10 ** power
     return value, error
 
 
@@ -580,19 +733,29 @@ def findranges(scannos, sep=':'):
 
     dif = np.diff(scannos)
 
-    stt, stp = [scannos[0]], [dif[0]]
+    stt, stp, rng = [scannos[0]], [dif[0]], [1]
     for n in range(1, len(dif)):
         if scannos[n + 1] != scannos[n] + dif[n - 1]:
             stt += [scannos[n]]
             stp += [dif[n]]
+            rng += [1]
+        else:
+            rng[-1] += 1
     stt += [scannos[-1]]
+    rng += [1]
 
     out = []
-    for x in range(0, len(stt), 2):
-        if stp[x] == 1:
+    x = 0
+    while x < len(stt):
+        if rng[x] == 1:
+            out += ['{}'.format(stt[x])]
+            x += 1
+        elif stp[x] == 1:
             out += ['{}{}{}'.format(stt[x], sep, stt[x + 1])]
+            x += 2
         else:
             out += ['{}{}{}{}{}'.format(stt[x], sep, stp[x], sep, stt[x + 1])]
+            x += 2
     return ','.join(out)
 
 
@@ -657,6 +820,61 @@ def multi_replace(string, old=[], new=[]):
     return string
 
 
+def replace_bracket_multiple(name):
+    """
+    Replace any numbers in brackets with numbers multipled by bracket multiplyer
+    Assumes bracket multiplier is on the left side
+    e.g.
+        replace_bracket_multiple('Mn0.3(Fe3.6(Co1.2)2)4(Mo0.7Pr44)3')
+        >> 'Mn0.3Fe14.4Co9.6Mo2.1Pr132'
+    :param name: str
+    :return: str
+    """
+    """
+    To do:
+     - Multiply by fraction (regex for '/number')
+     - Multiple on right hand side
+    """
+    # Regex:
+    regex_num = re.compile('[\d\.]+')
+    regex_bracket_n = re.compile('\)[\d\.]+')
+
+    # Find outside brackets
+    bracket = []
+    start_idx = []
+    level = 0
+    for n, s in enumerate(name):
+        if s in ['(', '[', '{']:
+            start_idx += [n]
+            level += 1
+        elif s in [')', ']', '}']:
+            level -= 1
+            if level == 0:
+                num = regex_bracket_n.findall(name[n:])
+                if len(num) > 0:
+                    bracket_end = n + len(num[0])
+                    num = float(num[0][1:])
+                else:
+                    bracket_end = n + 1
+                    num = 1.0
+                bracket += [(
+                    name[start_idx[0] + 1:n],  # insde brackets
+                    name[start_idx[0]:bracket_end],  # str to replace
+                    num  # multiplication appending bracket
+                )]
+                start_idx = []
+
+    for numstr, repstr, num in bracket:
+        # Run recursivley to get inner brackets
+        numstr = replace_bracket_multiple(numstr)
+        # Replace each number by it's multiple
+        for oldnum in regex_num.findall(numstr):
+            numstr = numstr.replace(oldnum, '%0.3g' % (float(oldnum) * num))
+        # Replace in original string
+        name = name.replace(repstr, numstr)
+    return name
+
+
 def nice_print(precision=4, linewidth=300):
     """
     Sets default printing of arrays to a nicer format
@@ -667,25 +885,29 @@ def nice_print(precision=4, linewidth=300):
 '----------------------------------Others-------------------------------'
 
 
-def gauss(x, y=0, height=1, cen=0, FWHM=0.5, bkg=0):
+def gauss(x, y=None, height=1, cen=0, fwhm=0.5, bkg=0):
     """
     Define Gaussian distribution in 1 or 2 dimensions
     From http://fityk.nieto.pl/model.html
         x = [1xn] array of values, defines size of gaussian in dimension 1
-        y = 0 or [1xm] array of values, defines size of gaussian in dimension 2
+        y = None* or [1xm] array of values, defines size of gaussian in dimension 2
         height = peak height
         cen = peak centre
-        FWHM = peak full width at half-max
+        fwhm = peak full width at half-max
         bkg = background
     """
+
+    if y is None:
+        y = cen
+
     x = np.asarray(x, dtype=np.float).reshape([-1])
     y = np.asarray(y, dtype=np.float).reshape([-1])
     X, Y = np.meshgrid(x, y)
-    gauss = height * np.exp(-np.log(2) * (((X - cen) ** 2 + (Y - cen) ** 2) / (FWHM / 2) ** 2)) + bkg
+    g = height * np.exp(-np.log(2) * (((X - cen) ** 2 + (Y - cen) ** 2) / (fwhm / 2) ** 2)) + bkg
 
     if len(y) == 1:
-        gauss = gauss.reshape([-1])
-    return gauss
+        g = g.reshape([-1])
+    return g
 
 
 def frange(start, stop=None, step=1):
@@ -700,3 +922,80 @@ def frange(start, stop=None, step=1):
         start = 0
 
     return list(np.arange(start, stop + 0.00001, step, dtype=np.float))
+
+
+def grid_intensity(points, values, resolution=0.01, peak_width=0.1, background=0):
+    """
+    Generates array of intensities along a spaced grid, equivalent to a powder pattern.
+      grid, values = generate_powder(points, values, resolution=0.01, peak_width=0.1, background=0)
+    :param points: [nx1] position of values to place on grid
+    :param values: [nx1] values to place at points
+    :param resolution: grid spacing size, with same units as points
+    :param peak_width: width of convolved gaussian, with same units as points
+    :param background: add a normal (random) background with width sqrt(background)
+    :return: points, values
+    """
+
+    points = np.asarray(points, dtype=np.float)
+    values = np.asarray(values, dtype=np.float)
+
+    # create plotting mesh
+    grid_points = np.arange(np.min(points) - 50 * resolution, np.max(points) + 50 * resolution, resolution)
+    pixels = len(grid_points)
+    grid_values = np.zeros([pixels])
+
+    # add reflections to background
+    pixel_size = (grid_points.max() - grid_points.min()) / pixels
+    peak_width_pixels = peak_width / (1.0 * pixel_size)
+
+    pixel_coord = (points - grid_points.min()) / (grid_points - grid_points.min()).max()
+    pixel_coord = (pixel_coord * (pixels - 1)).astype(int)
+    pixel_coord = pixel_coord.astype(int)
+
+    for n in range(0, len(values)):
+        grid_values[pixel_coord[n]] = grid_values[pixel_coord[n]] + values[n]
+
+    # Convolve with a gaussian (if >0 or not None)
+    if peak_width:
+        gauss_x = np.arange(-3 * peak_width_pixels, 3 * peak_width_pixels + 1)  # gaussian width = 2*FWHM
+        g = gauss(gauss_x, None, height=1, cen=0, fwhm=peak_width_pixels, bkg=0)
+        grid_values = np.convolve(grid_values, g, mode='same')
+
+    # Add background (if >0 or not None)
+    if background:
+        bkg = np.random.normal(background, np.sqrt(background), [pixels])
+        grid_values = grid_values + bkg
+    return grid_points, grid_values
+
+
+def map2grid(grid, points, values, widths=None, background=0):
+    """
+    Generates array of intensities along a spaced grid, equivalent to a powder pattern.
+      grid, values = generate_powder(points, values, resolution=0.01, peak_width=0.1, background=0)
+    :param grid: [mx1] grid of positions
+    :param points: [nx1] position of values to place on grid
+    :param values: [nx1] values to place at points
+    :param widths: width of convolved gaussian, with same units as points
+    :param background: add a normal (random) background with width sqrt(background)
+    :return: points, values
+    """
+    grid = np.asarray(grid, dtype=np.float)
+    points = np.asarray(points, dtype=np.float)
+    values = np.asarray(values, dtype=np.float)
+    widths = np.asarray(widths, dtype=np.float)
+
+    if widths.size == 1:
+        widths = widths * np.ones(len(points))
+
+    pixels = len(grid)
+    grid_values = np.zeros([pixels])
+
+    for point, value, width in zip(points, values, widths):
+        g = gauss(grid, None, height=value, cen=point, fwhm=width, bkg=0)
+        grid_values += g
+
+    # Add background (if >0 or not None)
+    if background:
+        bkg = np.random.normal(background, np.sqrt(background), [pixels])
+        grid_values = grid_values + bkg
+    return grid_values
